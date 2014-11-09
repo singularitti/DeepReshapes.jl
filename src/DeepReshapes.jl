@@ -6,7 +6,30 @@ export deep_reshape
 export flatten
 export pack
 
+# This defines anything that is considered to be a Scalar value and therefore a
+# leaf in the recursions. The way this is handled will probably change in future
+# versions.
 Scalar = Union(Number, String, Nothing)
+
+
+# structure() recursively describes a deep-reshapable object
+#   1. so that reshapes can be reversed and
+#   2. to determine the number of Scalar values contained within in the
+#      deep_length() function.
+#
+# In the untyped version (typed = false) this is a generalization of
+# Base.size(): the structure of
+#   - a Scalar is an empty tuple,
+#   - an Array of Scalars is the Tuple of dimensions,
+#   - an Array of non-Scalars is the Array{Any} of structures of its elements,
+#   - a non-empty Tuple is the Tuple of structures of its elements,
+#   - an empty Tuple is nothing.
+#
+# When typed = true, the structure of
+#   - a Scalar is its type,
+#   - an Array of Scalars is the Tuple of its element type concatenated with its
+#     dimensions,
+#   - and of all other objects is the same as in the untyped case.
 
 structure{T <: Scalar}(x::T; typed::Bool = true) = typed ? T : ()
 
@@ -20,13 +43,16 @@ structure{T <: Scalar}(x::Array{T}; typed::Bool = true) =
 
 structure(x::Array; typed::Bool = true) =
   map!(e -> structure(e, typed = typed), similar(x, Any), x)
+  # ^ We use map! here because we want to define the element type of the result.
 
-deep_length(x) = structure_length(structure(x, typed = false))
 
-structure_length(_::Nothing) = 0
-structure_length(_::()) = 1
-structure_length(x::(Integer...)) = prod(x)
-structure_length(x) = sum(structure_length, x)
+# A deep_reshape(x, structure) iterates over all the Scalars (recursively)
+# contained within x, and copies them into a now object whose structure is
+# defined in the same format that structure() returns.
+#
+# This happens in two independent processes which are executed in parallel:
+#   - produce_scalars() recursively walks the input and yields the scalars, and
+#   - consume_stucture() recursively builds the result structure from them.
 
 deep_reshape(x, structure) =
   consume_stucture(@task(produce_scalars(x)), structure)
@@ -73,13 +99,31 @@ end
 
 consume_stucture(producer::Task, _::Nothing) = ()
 
-flatten(x, MemberType::DataType) = deep_reshape(x, MemberType, deep_length(x))
-flatten(x) = flatten(x, Any)
+# This returns the count of Scalar values (recursively) contained within x.
+deep_length(x) = structure_length(structure(x, typed = false))
+
+structure_length(_::Nothing) = 0
+structure_length(_::()) = 1
+structure_length(x::(Integer...)) = prod(x)
+structure_length(x) = sum(structure_length, x)
+
+# This is just a convenience wrapper to reshape any deep-reshapable into a flat
+# Array, optionally with a fixed result element type.
+
+flatten(MemberType::DataType, x...) =
+  deep_reshape(x, MemberType, deep_length(x))
+
+flatten(x...) = flatten(Any, x...)
+
+# A convenience wrapper to ease converting between deep and flat representations
+# of the same data.
 
 function pack(MemberType::DataType, data...)
   s = structure(data, typed = false)
   l = structure_length(s)
   (deep_reshape(data, MemberType, l), s)
 end
+
+pack(x...) = pack(Any, x...)
 
 end # module

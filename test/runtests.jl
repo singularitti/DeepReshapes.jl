@@ -118,7 +118,8 @@ push!(I, b)
 @test deep_reshape(1:3, Float64, Int, Rational{Int}) == (1.0, 2, 3//1)
 
 @test flatten(I) == [1, 2, 3, 1, 2.0, 3//1]
-@test flatten((C, D), Float64) == [1.0, 4.0, 2.0, 5.0, 3.0, 6.0, 1.0, 2.0, 3.0, 4.0]
-@test eltype(flatten((C, D), Float64)) == Float64
+@test flatten(Float64, C, D) == [1.0, 4.0, 2.0, 5.0, 3.0, 6.0, 1.0, 2.0, 3.0, 4.0]
+@test eltype(flatten(Float64, C, D)) == Float64
 
+@test deep_reshape(pack(C, D)...) == (C, D)
 @test deep_reshape(pack(Float64, C, D)...) == (C, D)
