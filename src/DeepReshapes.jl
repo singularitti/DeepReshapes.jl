@@ -6,11 +6,10 @@ export deep_reshape
 export flatten
 export pack
 
-# This defines anything that is considered to be a Scalar value and therefore a
-# leaf in the recursions. The way this is handled will probably change in future
-# versions.
-Scalar = Union(Number, String, Nothing)
-
+# This defines where to stop recursing and where to descend further when
+# producing values.
+ScalarDefault = Union(Number, String, Nothing)
+DeepDefault = Union(Array, Tuple)
 
 # structure() recursively describes a deep-reshapable object
 #   1. so that reshapes can be reversed and
@@ -30,15 +29,20 @@ Scalar = Union(Number, String, Nothing)
 #   - an Array of Scalars is the Tuple of its element type concatenated with its
 #     dimensions,
 #   - and of all other objects is the same as in the untyped case.
+#
+# NOTE: Deep and Scalar can only be passed to deep_reshape, all other functions
+#       in this module assume the defaults. This is because the structure
+#       description format and deep_length behavior would need to be extended
+#       to arbitrary types to make this possible.
 
-structure{T <: Scalar}(x::T; typed::Bool = true) = typed ? T : ()
+structure{T <: ScalarDefault}(x::T; typed::Bool = true) = typed ? T : ()
 
 structure(x::(); typed::Bool = true) = nothing
 
 structure(x::(Any, Any...); typed::Bool = true) =
   tuple([structure(e, typed = typed) for e in x]...)
 
-structure{T <: Scalar}(x::Array{T}; typed::Bool = true) =
+structure{T <: ScalarDefault}(x::Array{T}; typed::Bool = true) =
   typed ? tuple(T, Base.size(x)...) : Base.size(x)
 
 structure(x::Array; typed::Bool = true) =
@@ -54,13 +58,20 @@ structure(x::Array; typed::Bool = true) =
 #   - produce_scalars() recursively walks the input and yields the scalars, and
 #   - consume_stucture() recursively builds the result structure from them.
 
-deep_reshape(x, structure) =
-  consume_stucture(@task(produce_scalars(x)), structure)
+deep_reshape(x, structure; Scalar = ScalarDefault, Deep = DeepDefault) =
+  consume_stucture(@task(produce_scalars(x, Scalar, Deep)), structure)
 
 deep_reshape(x, structure...) = deep_reshape(x, structure)
 
-produce_scalars(x::Scalar) = produce(x)
-produce_scalars(x) = for e in x; produce_scalars(e) end
+# If x is a Scalar, produce it, no matter whether it is also of a Deep type or
+# not.
+produce_scalars{T}(x::T, Scalar::Type{T}, Deep::Type) = produce(x)
+produce_scalars{T}(x::T, Scalar::Type{T}, Deep::Type{T}) = produce(x)
+
+# If x is not a Scalar and of a Deep type, recurse.
+produce_scalars{T}(x::T, Scalar::Type, Deep::Type{T}) =
+  for e in x; produce_scalars(e, Scalar, Deep) end
+
   
 function consume_stucture(
   producer::Task,

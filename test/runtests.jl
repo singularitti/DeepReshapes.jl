@@ -18,10 +18,7 @@ g = [1, (2, 3)]
 
 h = [1 (2, 3)]
 
-I = Vector[]
-push!(I, a)
-push!(I, b)
-
+I = Vector[a, b]
 
 # Untyped structure
 
@@ -112,10 +109,17 @@ push!(I, b)
 @test deep_reshape(([1:10], [11 13 15; 12 14 16]), (2, 2, 2, 2)) == reshape([1:16], 2, 2, 2, 2)
 
 
+# Reshapes with non-default recursion behavior (experimental)
+
+@test deep_reshape(1:6, (2, 3); Deep = Range) == [1 3 5; 2 4 6]
+@test deep_reshape(([1:5], [1.0:5.0]), (2,); Deep = Tuple, Scalar = Array) == Vector[Int[1, 2, 3, 4, 5], Float64[1.0, 2.0, 3.0, 4.0, 5.0]]
+@test deep_reshape((1:3, 4:6, 7, 8:10), (10,); Deep = Union(Tuple, Range)) == [1:10]
+@test deep_reshape((1:3, 4:6, 7, 8:10), (4,); Scalar = Union(Number, Range)) == Any[1:3, 4:6, 7, 8:10]
+
 # Convenience wrappers
 
-@test deep_reshape(1:100, 10, 10) == reshape(1:100, 10, 10)
-@test deep_reshape(1:3, Float64, Int, Rational{Int}) == (1.0, 2, 3//1)
+@test deep_reshape([1:100], 10, 10) == reshape(1:100, 10, 10)
+@test deep_reshape([1:3], Float64, Int, Rational{Int}) == (1.0, 2, 3//1)
 
 @test flatten(I) == [1, 2, 3, 1, 2.0, 3//1]
 @test flatten(Float64, C, D) == [1.0, 4.0, 2.0, 5.0, 3.0, 6.0, 1.0, 2.0, 3.0, 4.0]
