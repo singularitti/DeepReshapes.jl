@@ -20,39 +20,36 @@ h = [1 (2, 3)]
 
 I = Vector[a, b]
 
-# Untyped structure
+# Untyped describe
 
-@test structure((), typed = false) == nothing
-@test structure(1, typed = false) == ()
-@test structure(a, typed = false) == (3,)
-@test structure(b, typed = false) == (3,)
-@test structure(C, typed = false) == (2,3)
-@test structure(D, typed = false) == (1,4)
-@test structure(E, typed = false) == ((), (), ())
-@test structure(F, typed = false) == ((3,), (3,), (2, 3), ((1, 4), ((), (), ())))
-@test structure(g, typed = false) == [(), ((), ())]
-@test structure(h, typed = false) == [() ((), ())]
-@test structure(I, typed = false) == [(3,), (3,)]
+@test describe(1, typed = false) == ()
+@test describe(a, typed = false) == (3,)
+@test describe(b, typed = false) == (3,)
+@test describe(C, typed = false) == (2,3)
+@test describe(D, typed = false) == (1,4)
+@test describe(E, typed = false) == ((), (), ())
+@test describe(F, typed = false) == ((3,), (3,), (2, 3), ((1, 4), ((), (), ())))
+@test describe(g, typed = false) == [(), ((), ())]
+@test describe(h, typed = false) == [() ((), ())]
+@test describe(I, typed = false) == [(3,), (3,)]
 
 
-# Typed (default) structure
+# Typed (default) describe
 
-@test structure(()) == nothing
-@test structure(1) == Int
-@test structure(a) == (Int, 3)
-@test structure(b) == (Real, 3)
-@test structure(C) == (Float64, 2,3)
-@test structure(D) == (Float64, 1,4)
-@test structure(E) == (Int, Float64, Rational{Int})
-@test structure(F) == ((Int, 3), (Real, 3), (Float64, 2,3), ((Float64, 1,4), (Int, Float64, Rational{Int})))
-@test structure(g) == [Int, (Int, Int)]
-@test structure(h) == [Int (Int, Int)]
-@test structure(I) == [(Int, 3), (Real, 3)]
+@test describe(1) == Int
+@test describe(a) == (Int, 3)
+@test describe(b) == (Real, 3)
+@test describe(C) == (Float64, 2,3)
+@test describe(D) == (Float64, 1,4)
+@test describe(E) == (Int, Float64, Rational{Int})
+@test describe(F) == ((Int, 3), (Real, 3), (Float64, 2,3), ((Float64, 1,4), (Int, Float64, Rational{Int})))
+@test describe(g) == [Int, (Int, Int)]
+@test describe(h) == [Int (Int, Int)]
+@test describe(I) == [(Int, 3), (Real, 3)]
 
 
 # Length determination
 
-@test deep_length(()) == 0
 @test deep_length(1) == 1
 @test deep_length(a) == 3
 @test deep_length(b) == 3
@@ -112,9 +109,7 @@ I = Vector[a, b]
 # Reshapes with non-default recursion behavior (experimental)
 
 @test deep_reshape(1:6, (2, 3); Deep = Range) == [1 3 5; 2 4 6]
-@test deep_reshape(([1:5], [1.0:5.0]), (2,); Deep = Tuple, Scalar = Array) == Vector[Int[1, 2, 3, 4, 5], Float64[1.0, 2.0, 3.0, 4.0, 5.0]]
 @test deep_reshape((1:3, 4:6, 7, 8:10), (10,); Deep = Union(Tuple, Range)) == [1:10]
-@test deep_reshape((1:3, 4:6, 7, 8:10), (4,); Scalar = Union(Number, Range)) == Any[1:3, 4:6, 7, 8:10]
 
 # Convenience wrappers
 

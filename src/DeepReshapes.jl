@@ -1,122 +1,122 @@
 module DeepReshapes
 
-export structure
-export deep_length
-export deep_reshape
-export flatten
-export pack
+export describe, deep_length, deep_reshape, flatten, pack
 
-# This defines where to stop recursing and where to descend further when
-# producing values.
-ScalarDefault = Union(Number, String, Nothing)
-DeepDefault = Union(Array, Tuple)
-
-# structure() recursively describes a deep-reshapable object
-#   1. so that reshapes can be reversed and
-#   2. to determine the number of Scalar values contained within in the
-#      deep_length() function.
+# describe(x) recursively describes the dimensions of x
+#   1. so that some deep reshapes can be reversed and
+#   2. to determine the number of scalar values contained within (from
+#      deep_length()).
+#
+# At the moment, the only recognized scalars are Numbers.
 #
 # In the untyped version (typed = false) this is a generalization of
-# Base.size(): the structure of
-#   - a Scalar is an empty tuple,
-#   - an Array of Scalars is the Tuple of dimensions,
-#   - an Array of non-Scalars is the Array{Any} of structures of its elements,
-#   - a non-empty Tuple is the Tuple of structures of its elements,
-#   - an empty Tuple is nothing.
+# Base.size(): the specification of
+#   - a scalar is an empty tuple,
+#   - an Array of scalars is the Tuple of its dimensions,
+#   - any other Array is the Array{Any} of specifications of its elements,
+#   - a non-empty Tuple is the Tuple of specification of its elements,
+#   - anything else is not defined.
 #
-# When typed = true, the structure of
-#   - a Scalar is its type,
-#   - an Array of Scalars is the Tuple of its element type concatenated with its
+# When typed = true, the specification of
+#   - a scalar is its type,
+#   - an Array of scalars is the Tuple of its element type concatenated with its
 #     dimensions,
 #   - and of all other objects is the same as in the untyped case.
-#
-# NOTE: Deep and Scalar can only be passed to deep_reshape, all other functions
-#       in this module assume the defaults. This is because the structure
-#       description format and deep_length behavior would need to be extended
-#       to arbitrary types to make this possible.
 
-structure{T <: ScalarDefault}(x::T; typed::Bool = true) = typed ? T : ()
+describe{T <: Number}(x::T; typed::Bool = true) = typed ? T : ()
 
-structure(x::(); typed::Bool = true) = nothing
+describe(x::(Any, Any...); typed::Bool = true) =
+  tuple([describe(e, typed = typed) for e in x]...)
 
-structure(x::(Any, Any...); typed::Bool = true) =
-  tuple([structure(e, typed = typed) for e in x]...)
-
-structure{T <: ScalarDefault}(x::Array{T}; typed::Bool = true) =
+describe{T <: Number}(x::Array{T}; typed::Bool = true) =
   typed ? tuple(T, Base.size(x)...) : Base.size(x)
 
-structure(x::Array; typed::Bool = true) =
-  map!(e -> structure(e, typed = typed), similar(x, Any), x)
+describe(x::Array; typed::Bool = true) =
+  map!(e -> describe(e, typed = typed), similar(x, Any), x)
   # ^ We use map! here because we want to define the element type of the result.
 
 
-# A deep_reshape(x, structure) iterates over all the Scalars (recursively)
-# contained within x, and copies them into a now object whose structure is
-# defined in the same format that structure() returns.
+# A deep_reshape(x, specification) iterates over all the scalars (recursively)
+# contained within x, and from that stream writes into a new object whose
+# structure is defined by specification.
 #
 # This happens in two independent processes which are executed in parallel:
-#   - produce_scalars() recursively walks the input and yields the scalars, and
-#   - consume_stucture() recursively builds the result structure from them.
+#   - deep_produce() recursively walks the input and produces the scalars, and
+#   - consume_stuctured() recursively builds the result from them according to
+#     specification.
+#
+# By default, deep_produce() descends into Arrays and Tuples, but that behavior
+# can be overridden by supplying the optional Deep argument. All encountered
+# values that are not of Deep type are considered scalar by deep_produce() and
+# therefore produced directly.
+#
+# The specification is of the same format that describe() returns.
 
-deep_reshape(x, structure; Scalar = ScalarDefault, Deep = DeepDefault) =
-  consume_stucture(@task(produce_scalars(x, Scalar, Deep)), structure)
+DeepDefault = Union(Array, Tuple)
 
-deep_reshape(x, structure...) = deep_reshape(x, structure)
+deep_reshape(x, specification; Deep = DeepDefault) =
+  consume_stuctured(@task(deep_produce(x, Deep)), specification)
 
-# If x is a Scalar, produce it, no matter whether it is also of a Deep type or
-# not.
-produce_scalars{T}(x::T, Scalar::Type{T}, Deep::Type) = produce(x)
-produce_scalars{T}(x::T, Scalar::Type{T}, Deep::Type{T}) = produce(x)
+deep_reshape(x, specification...) = deep_reshape(x, specification)
 
-# If x is not a Scalar and of a Deep type, recurse.
-produce_scalars{T}(x::T, Scalar::Type, Deep::Type{T}) =
-  for e in x; produce_scalars(e, Scalar, Deep) end
 
-  
-function consume_stucture(
+# Descend into all x of Deep type.
+deep_produce{T}(x::T, Deep::Type{T}) =
+  for e in x; deep_produce(e, Deep) end
+
+# Produce scalars directly.
+deep_produce(x, ::Type) = produce(x)
+
+
+# Consume a scalar or Array of scalars.
+function consume_stuctured(
   producer::Task,
-  MemberType::DataType,
+  Member::DataType,
   dimensions::Integer...
 )
   if dimensions == ()
-    convert(MemberType, consume(producer))
+    convert(Member, consume(producer))
   else
-    result = Array(MemberType, dimensions...)
-    copy_object(i...) = result[i...] = consume(producer)
-    cartesianmap(copy_object, dimensions)
+    result = Array(Member, dimensions...)
+    assign_entry(i...) = result[i...] = consume(producer)
+    cartesianmap(assign_entry, dimensions)
   
     result
   end
 end
 
-consume_stucture(producer::Task, structure::(Integer...)) =
-  consume_stucture(producer, Any, structure...)
+# Consume a scalar or Array of scalars of unspecified type.
+consume_stuctured(producer::Task, specification::(Integer...)) =
+  consume_stuctured(producer, Any, specification...)
 
-consume_stucture(producer::Task, structure::(DataType, Integer...)) =
-  consume_stucture(producer, structure...)
-
-consume_stucture(producer::Task, structure::Tuple) =
-  tuple([consume_stucture(producer::Task, element) for element in structure]...)
-
-function consume_stucture(producer::Task, structure::Array)
-  result = Array(Any, size(structure)...)
+# Consume a scalar or Array of scalars of specific type.
+consume_stuctured(producer::Task, specification::(DataType, Integer...)) =
+  consume_stuctured(producer, specification...)
   
-  copy_into_result(i...) = result[i...] =
-    consume_stucture(producer, structure[i...])
-  cartesianmap(copy_into_result, size(structure))
+# Recursively consume any other Array.
+function consume_stuctured(producer::Task, specification::Array)
+  result = Array(Any, size(specification)...)
+  assign_entry(i...) =
+    result[i...] = consume_stuctured(producer, specification[i...])
+  cartesianmap(assign_entry, size(specification))
   
   result
 end
 
-consume_stucture(producer::Task, _::Nothing) = ()
+# Recursively consume a Tuple.
+consume_stuctured(producer::Task, specification::Tuple) =
+  tuple([consume_stuctured(producer, element) for element in specification]...)
 
-# This returns the count of Scalar values (recursively) contained within x.
-deep_length(x) = structure_length(structure(x, typed = false))
 
-structure_length(_::Nothing) = 0
-structure_length(_::()) = 1
-structure_length(x::(Integer...)) = prod(x)
-structure_length(x) = sum(structure_length, x)
+# deep_length(x) returns the count of scalar values (recursively) contained
+# within x. Only works where describe(x) also works.
+
+deep_length(x) = specification_length(describe(x, typed = false))
+
+specification_length(::()) = 1
+specification_length(x::(Integer...)) = prod(x)
+specification_length(x) = sum(specification_length, x)
+
 
 # This is just a convenience wrapper to reshape any deep-reshapable into a flat
 # Array, optionally with a fixed result element type.
@@ -126,12 +126,13 @@ flatten(MemberType::DataType, x...) =
 
 flatten(x...) = flatten(Any, x...)
 
+
 # A convenience wrapper to ease converting between deep and flat representations
 # of the same data.
 
 function pack(MemberType::DataType, data...)
-  s = structure(data, typed = false)
-  l = structure_length(s)
+  s = describe(data, typed = false)
+  l = specification_length(s)
   (deep_reshape(data, MemberType, l), s)
 end
 
