@@ -11,7 +11,7 @@ like a code review to know whether I am actually doing this "right". Please just
 have a look, and if you think this is useful and ready, open an issue or
 something like that.
 
-Note that this only works on Julia 0.4 right now due to a bug in 0.3.2.
+Note that this only works on Julia 0.4 right now.
 
 ## What?
 
