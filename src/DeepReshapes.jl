@@ -130,11 +130,8 @@ flatten(x...) = flatten(Any, x...)
 # A convenience wrapper to ease converting between deep and flat representations
 # of the same data.
 
-function pack(MemberType::DataType, data...)
-  s = describe(data, typed = false)
-  l = specification_length(s)
-  (deep_reshape(data, MemberType, l), s)
-end
+pack(MemberType::DataType, data...) =
+  (flatten(MemberType, data), describe(data))
 
 pack(x...) = pack(Any, x...)
 
