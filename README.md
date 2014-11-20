@@ -2,8 +2,16 @@
 
 Extends
 [reshape](http://julia.readthedocs.org/en/latest/stdlib/base/#Base.reshape)
-to arbitrarily nested structures of `Tuple`s and `Arrays`, both in source and
-target.
+to arbitrarily nested structures of `Tuple`s and `Array`s, both in source and
+target. Also provides a deep `flatten` function that transforms these structures
+into a flat `Vector`.
+
+As I am pretty new to Julia, before I consider registering this package, I would
+like a code review to know whether I am actually doing this "right". Please just
+have a look, and if you think this is useful and ready, open an issue or
+something like that.
+
+Note that this only works on Julia 0.4 right now due to a bug in 0.3.2.
 
 ## What?
 
@@ -29,7 +37,7 @@ deep_reshape([1:25], ((3, 3), (4, 4)))
 # => (1.23,2.34,[3,4,5])
 ```
 
-This works on all (potentially nested) structures of `Tuple`s and `Arrays`, as
+This works on all (potentially nested) structures of `Tuple`s and `Array`s, as
 long as the actual scalar values contained within are `Number`s (for now).
 
 ## Why?
@@ -43,7 +51,7 @@ more structured data.
 
 Consider for example the popular
 [backpropagation algorithm]
-{http://ufldl.stanford.edu/wiki/index.php/Backpropagation_Algorithm}
+(http://ufldl.stanford.edu/wiki/index.php/Backpropagation_Algorithm)
 for training neural networks. The outline of the gradient calculation might look
 like this:
 
@@ -60,8 +68,8 @@ function cost_and_gradient!(
 end
 ```
 
-For optimization, we cannot use this function directly, because it expects it to
-work on plain number vectors:
+For optimization, we cannot use this function directly, because the optimization
+package expects it to work on plain number vectors:
 
 ```
 using NLopt
@@ -74,7 +82,7 @@ min_objective!(optimization, cost_and_gradient!) # <- we need to define this
 result = optimize(optimization, θ)
 ```
 
-Flattening the initial parameters is easy with `DeepReshapes.flatten()`:
+Flattening the initial parameters is easy with `flatten`:
 
 ```
 using DeepReshapes
@@ -88,9 +96,8 @@ As for `cost_and_gradient!`, we can simply wrap the original calculation with
 ```
 function cost_and_gradient!(θ::Vector{Float64}, ∇θ::Vector{Float64})
   W, b = deep_reshape(θ, s) # <- s is a specification of the original structure
-                            # which can be obtained by calling
-                            # DeepReshapes.describe() on the initial parameters
-                            # before flattening them.
+                            # which can be obtained by calling describe on the
+                            # initial parameters before flattening them.
 
   # ...do the original calculation
   ∇θ[:] = flatten(Float64, ∇W, ∇b)
@@ -108,6 +115,8 @@ specification:
 ```
 result = deep_reshape(input, specification)
 ```
+
+### Source
 
 The input can be any object, but by default, the producer only descends into
 Arrays and Tuples and considers anything else to be a scalar:
@@ -127,6 +136,8 @@ deep_reshape(1:4, (2, 2), Deep = Range)
 Any input of type `Deep` will be considered iterable and all contained values
 will be produced. Any other input will be considered scalar and produced
 directly, without further recursion.
+
+### Target
 
 The produced scalars will then be assigned into the objects under construction 
 according to the specification, which is of the following format:
@@ -157,7 +168,9 @@ nested = deep_reshape([1:14], s)
 #      12 14])
 ```
 
-There is also a convenience function `flatten` that can recursively flatten the
+### flatten and pack
+
+There is also a convenience function `flatten` that can recursively flattens the
 input to a `Vector`, optionally with a fixed target type that the scalars are to
 be converted to:
 
@@ -170,8 +183,8 @@ flatten(Int, nested)
 ```
 
 The very similar `pack` function returns both the flattened `Vector` and the
-original structured as defined by `describe`. This can be used to reverse the
-flattening later:
+original structure as defined by `describe`. This can be used to later reverse
+the flattening:
 
 ```
 flattened, s = pack(Int, ([1:10], [1 2; 3 4]))
@@ -182,7 +195,3 @@ deep_reshape(flattened, s)
 #     [11 13;
 #      12 14])
 ```
-
----
-
-_More to follow..._
