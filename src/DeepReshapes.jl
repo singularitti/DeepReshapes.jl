@@ -25,7 +25,7 @@ export describe, deep_length, deep_reshape, flatten, pack
 
 describe{T <: Number}(x::T; typed::Bool = true) = typed ? T : ()
 
-describe(x::(Any, Any...); typed::Bool = true) =
+describe(x::Tuple{Any, Vararg{Any}}; typed::Bool = true) =
   tuple([describe(e, typed = typed) for e in x]...)
 
 describe{T <: Number}(x::Array{T}; typed::Bool = true) =
@@ -42,7 +42,7 @@ describe(x::Array; typed::Bool = true) =
 #
 # This happens in two independent processes which are executed in parallel:
 #   - deep_produce() recursively walks the input and produces the scalars, and
-#   - consume_stuctured() recursively builds the result from them according to
+#   - consume_structured() recursively builds the result from them according to
 #     specification.
 #
 # By default, deep_produce() descends into Arrays and Tuples, but that behavior
@@ -52,10 +52,10 @@ describe(x::Array; typed::Bool = true) =
 #
 # The specification is of the same format that describe() returns.
 
-DeepDefault = Union(Array, Tuple)
+DeepDefault = Union{Array, Tuple}
 
 deep_reshape(x, specification; Deep = DeepDefault) =
-  consume_stuctured(@task(deep_produce(x, Deep)), specification)
+  consume_structured(@task(deep_produce(x, Deep)), specification)
 
 deep_reshape(x, specification...) = deep_reshape(x, specification)
 
@@ -69,7 +69,7 @@ deep_produce(x, ::Type) = produce(x)
 
 
 # Consume a scalar or Array of scalars.
-function consume_stuctured(
+function consume_structured(
   producer::Task,
   Member::DataType,
   dimensions::Integer...
@@ -78,34 +78,34 @@ function consume_stuctured(
     convert(Member, consume(producer))
   else
     result = Array(Member, dimensions...)
-    assign_entry(i...) = result[i...] = consume(producer)
-    cartesianmap(assign_entry, dimensions)
-  
+    for indices in CartesianRange(dimensions)
+      result[indices] = consume(producer)
+    end
     result
   end
 end
 
 # Consume a scalar or Array of scalars of unspecified type.
-consume_stuctured(producer::Task, specification::(Integer...)) =
-  consume_stuctured(producer, Any, specification...)
+consume_structured(producer::Task, specification::Tuple{Vararg{Integer}}) =
+  consume_structured(producer, Any, specification...)
 
 # Consume a scalar or Array of scalars of specific type.
-consume_stuctured(producer::Task, specification::(DataType, Integer...)) =
-  consume_stuctured(producer, specification...)
+consume_structured(producer::Task, specification::Tuple{DataType, Vararg{Integer}}) =
+  consume_structured(producer, specification...)
   
 # Recursively consume any other Array.
-function consume_stuctured(producer::Task, specification::Array)
-  result = Array(Any, size(specification)...)
-  assign_entry(i...) =
-    result[i...] = consume_stuctured(producer, specification[i...])
-  cartesianmap(assign_entry, size(specification))
-  
+function consume_structured(producer::Task, specification::Array)
+  dimensions = size(specification)
+  result = Array(Any, dimensions...)
+  for indices in CartesianRange(dimensions)
+    result[indices] = consume_structured(producer, specification[indices])
+  end
   result
 end
 
 # Recursively consume a Tuple.
-consume_stuctured(producer::Task, specification::Tuple) =
-  tuple([consume_stuctured(producer, element) for element in specification]...)
+consume_structured(producer::Task, specification::Tuple) =
+  tuple([consume_structured(producer, element) for element in specification]...)
 
 
 # deep_length(x) returns the count of scalar values (recursively) contained
@@ -113,8 +113,8 @@ consume_stuctured(producer::Task, specification::Tuple) =
 
 deep_length(x) = specification_length(describe(x, typed = false))
 
-specification_length(::()) = 1
-specification_length(x::(Integer...)) = prod(x)
+specification_length(::Tuple{}) = 1
+specification_length(x::Tuple{Vararg{Integer}}) = prod(x)
 specification_length(x) = sum(specification_length, x)
 
 

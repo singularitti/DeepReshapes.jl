@@ -82,39 +82,39 @@ I = Vector[a, b]
 @test deep_reshape(1, (Int,)) == 1
 @test deep_reshape(1, (Float64,)) == 1.0
 
-@test deep_reshape([1:3], (Int, Int, Int)) == (1, 2, 3)
-@test deep_reshape([1:3], (Int, Float64, Rational{Int})) == (1, 2.0, 3//1)
-@test deep_reshape([1:3], [Int, Int, Int]) == [1, 2, 3]
-@test deep_reshape([1:3], (Int, (Int, Int))) == (1, (2, 3))
-@test deep_reshape([1:3], ((Int, Int), Int)) == ((1, 2), 3)
-@test deep_reshape([1:3], (Int, [Int, Int])) == (1, [2, 3])
-@test deep_reshape([1:3], [Int, (Int, Int)]) == [1, (2, 3)]
+@test deep_reshape([1, 2, 3], (Int, Int, Int)) == (1, 2, 3)
+@test deep_reshape([1, 2, 3], (Int, Float64, Rational{Int})) == (1, 2.0, 3//1)
+@test deep_reshape([1, 2, 3], [Int, Int, Int]) == [1, 2, 3]
+@test deep_reshape([1, 2, 3], (Int, (Int, Int))) == (1, (2, 3))
+@test deep_reshape([1, 2, 3], ((Int, Int), Int)) == ((1, 2), 3)
+@test deep_reshape([1, 2, 3], (Int, [Int, Int])) == (1, [2, 3])
+@test deep_reshape([1, 2, 3], [Int, (Int, Int)]) == [1, (2, 3)]
 
-@test deep_reshape([1:10], (2, 5)) == [1 3 5 7 9; 2 4 6 8 10]
-@test deep_reshape([1:10], (Int, 2, 5)) == [1 3 5 7 9; 2 4 6 8 10]
-@test eltype(deep_reshape([1:10], (Int, 2, 5))) == Int
-@test deep_reshape([1:10], (Float64, 2, 5)) == [1.0 3.0 5.0 7.0 9.0; 2.0 4.0 6.0 8.0 10.0]
-@test eltype(deep_reshape([1:10], (Float64, 2, 5))) == Float64
+@test deep_reshape(collect(1:10), (2, 5)) == [1 3 5 7 9; 2 4 6 8 10]
+@test deep_reshape(collect(1:10), (Int, 2, 5)) == [1 3 5 7 9; 2 4 6 8 10]
+@test eltype(deep_reshape(collect(1:10), (Int, 2, 5))) == Int
+@test deep_reshape(collect(1:10), (Float64, 2, 5)) == [1.0 3.0 5.0 7.0 9.0; 2.0 4.0 6.0 8.0 10.0]
+@test eltype(deep_reshape(collect(1:10), (Float64, 2, 5))) == Float64
 
-@test deep_reshape([1:25], ((3, 3), (4, 4))) == ([1 4 7; 2 5 8; 3 6 9], [10  14  18  22; 11  15  19  23; 12  16  20  24; 13  17  21  25])
+@test deep_reshape(collect(1:25), ((3, 3), (4, 4))) == ([1 4 7; 2 5 8; 3 6 9], [10  14  18  22; 11  15  19  23; 12  16  20  24; 13  17  21  25])
 @test deep_reshape([1, 2, 3, 1.0, 2, 3//1], [(3,), (3,)]) == I
 
 
 # Arbitrary reshapes
 
 @test deep_reshape((C, D), (Float64, 2, 5)) == [1.0 2.0 3.0 1.0 3.0; 4.0 5.0 6.0 2.0 4.0]
-@test deep_reshape(([1:10], [11 13 15; 12 14 16]), (2, 2, 2, 2)) == reshape([1:16], 2, 2, 2, 2)
+@test deep_reshape((collect(1:10), [11 13 15; 12 14 16]), (2, 2, 2, 2)) == reshape(collect(1:16), 2, 2, 2, 2)
 
 
 # Reshapes with non-default recursion behavior (experimental)
 
 @test deep_reshape(1:6, (2, 3); Deep = Range) == [1 3 5; 2 4 6]
-@test deep_reshape((1:3, 4:6, 7, 8:10), (10,); Deep = Union(Tuple, Range)) == [1:10]
+@test deep_reshape((1:3, 4:6, 7, 8:10), (10,); Deep = Union{Tuple, Range}) == collect(1:10)
 
 # Convenience wrappers
 
-@test deep_reshape([1:100], 10, 10) == reshape(1:100, 10, 10)
-@test deep_reshape([1:3], Float64, Int, Rational{Int}) == (1.0, 2, 3//1)
+@test deep_reshape(collect(1:100), 10, 10) == reshape(1:100, 10, 10)
+@test deep_reshape([1, 2, 3], Float64, Int, Rational{Int}) == (1.0, 2, 3//1)
 
 @test flatten(I) == [1, 2, 3, 1, 2.0, 3//1]
 @test flatten(Float64, C, D) == [1.0, 4.0, 2.0, 5.0, 3.0, 6.0, 1.0, 2.0, 3.0, 4.0]
