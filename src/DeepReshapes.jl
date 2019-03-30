@@ -23,12 +23,12 @@ export describe, deep_length, deep_reshape, flatten, pack
 #     dimensions,
 #   - and of all other objects is the same as in the untyped case.
 
-describe{T <: Number}(x::T; typed::Bool = true) = typed ? T : ()
+describe(x::T; typed::Bool = true) where {T <: Number} = typed ? T : ()
 
 describe(x::Tuple{Any, Vararg{Any}}; typed::Bool = true) =
   tuple([describe(e, typed = typed) for e in x]...)
 
-describe{T <: Number}(x::Array{T}; typed::Bool = true) =
+describe(x::Array{T}; typed::Bool = true) where {T <: Number} =
   typed ? tuple(T, Base.size(x)...) : Base.size(x)
 
 describe(x::Array; typed::Bool = true) =
@@ -61,7 +61,7 @@ deep_reshape(x, specification...) = deep_reshape(x, specification)
 
 
 # Descend into all x of Deep type.
-deep_produce{T}(x::T, Deep::Type{T}) =
+deep_produce(x::T, Deep::Type{T}) where {T} =
   for e in x; deep_produce(e, Deep) end
 
 # Produce scalars directly.
@@ -78,7 +78,7 @@ function consume_structured(
     convert(Member, consume(producer))
   else
     result = Array(Member, dimensions...)
-    for indices in CartesianRange(dimensions)
+    for indices in CartesianIndices(dimensions)
       result[indices] = consume(producer)
     end
     result
@@ -92,12 +92,12 @@ consume_structured(producer::Task, specification::Tuple{Vararg{Integer}}) =
 # Consume a scalar or Array of scalars of specific type.
 consume_structured(producer::Task, specification::Tuple{DataType, Vararg{Integer}}) =
   consume_structured(producer, specification...)
-  
+
 # Recursively consume any other Array.
 function consume_structured(producer::Task, specification::Array)
   dimensions = size(specification)
   result = Array(Any, dimensions...)
-  for indices in CartesianRange(dimensions)
+  for indices in CartesianIndices(dimensions)
     result[indices] = consume_structured(producer, specification[indices])
   end
   result
